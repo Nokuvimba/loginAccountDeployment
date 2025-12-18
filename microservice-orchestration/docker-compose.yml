@@ -1,58 +1,84 @@
 services:
+
+  # LOGIN: DB + API
   login-db:
     image: postgres:17-alpine
     environment:
       POSTGRES_USER: app
       POSTGRES_PASSWORD: app
-      POSTGRES_DB: logindb
+      POSTGRES_DB: appdb
     volumes:
-      - login-data:/var/lib/postgresql/data
-    ports:
-      - "5434:5432"
+      - login-postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U app -d logindb"]
+      test: ["CMD-SHELL", "pg_isready -U app -d appdb"]
       interval: 5s
       retries: 10
+    restart: unless-stopped
+    networks:
+      - labnet
 
+  login-service:
+    image: ghcr.io/tremainm/ci-cd_y4-bankingapp_login/login:latest
+    ports:
+      - "8001:8000"
+    environment:
+      APP_ENV: docker
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: appdb
+      # FIX: login image has psycopg2-binary, so use psycopg2 driver
+      DATABASE_URL: postgresql+psycopg2://app:app@login-db:5432/appdb
+      # FIX: point to the account service by its compose service name
+      OTHER_API_BASE: http://account-service:8000
+    depends_on:
+      login-db:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - labnet
+
+  # ACCOUNT: DB + API
   account-db:
     image: postgres:17-alpine
     environment:
       POSTGRES_USER: app
       POSTGRES_PASSWORD: app
-      POSTGRES_DB: accountdb
+      POSTGRES_DB: appdb
     volumes:
-      - account-data:/var/lib/postgresql/data
-    ports:
-      - "5433:5432"
+      - account-postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U app -d accountdb"]
+      test: ["CMD-SHELL", "pg_isready -U app -d appdb"]
       interval: 5s
       retries: 10
+    restart: unless-stopped
+    networks:
+      - labnet
 
-  login:
-    build: ./CI-CD_Y4-BankingApp_Login
-    environment:
-      - APP_ENV=docker
-      - DATABASE_URL=postgresql+psycopg2://app:app@login-db:5432/logindb
-      - ACCOUNT_BASE_URL=http://account:8000
-    depends_on:
-      login-db:
-        condition: service_healthy
+  account-service:
+    image: ghcr.io/nokuvimba/account-microservice/account:latest
     ports:
-      - "8001:8000"
-
-  account:
-    build: ./Account-Microservice
+      - "8002:8000"
     environment:
-      - APP_ENV=docker
-      - DATABASE_URL=postgresql+psycopg://app:app@account-db:5432/accountdb
-      - LOGIN_BASE_URL=http://login:8000
+      APP_ENV: docker
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: appdb
+      SQL_ECHO: "false"
+      #using psycopg2 here too (safe + consistent), and point to account-db
+      DATABASE_URL: postgresql+psycopg2://app:app@account-db:5432/appdb
+      # point to the login service by its compose service name
+      LOGIN_BASE_URL: http://login-service:8000
+      OTHER_API_BASE: http://login-service:8000
     depends_on:
       account-db:
         condition: service_healthy
-    ports:
-      - "8002:8000"
+    restart: unless-stopped
+    networks:
+      - labnet
 
 volumes:
-  login-data:
-  account-data:
+  login-postgres-data:
+  account-postgres-data:
+
+networks:
+  labnet: {}
