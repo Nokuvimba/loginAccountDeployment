@@ -132,6 +132,21 @@ services:
     networks:
       - labnet
 
+    # DOCUMENTS: API only
+  documents-service:
+    image: ghcr.io/anesuleo/bankingapp_documents/documents_service:latest
+    ports:
+      - "8003:8000"
+    environment:
+      APP_ENV: docker
+      ACCOUNT_SERVICE_BASE_URL: http://account-service:8000
+    depends_on:
+      account-service:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - labnet
+
 volumes:
   login-postgres-data:
   account-postgres-data:
