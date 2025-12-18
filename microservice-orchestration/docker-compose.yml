@@ -64,6 +64,7 @@ services:
       POSTGRES_PASSWORD: app
       POSTGRES_DB: appdb
       SQL_ECHO: "false"
+      RABBIT_URL: amqps://czithupx:V7RN0YPnBW0lH-ezEGVkFKaoMne94wD9@stingray.rmq.cloudamqp.com/czithupx
       #using psycopg2 here too (safe + consistent), and point to account-db
       DATABASE_URL: postgresql+psycopg2://app:app@account-db:5432/appdb
       # point to the login service by its compose service name
@@ -103,9 +104,27 @@ services:
       POSTGRES_PASSWORD: app
       POSTGRES_DB: appdb
       SQL_ECHO: "false"
+      RABBIT_URL: amqps://czithupx:V7RN0YPnBW0lH-ezEGVkFKaoMne94wD9@stingray.rmq.cloudamqp.com/czithupx
       #using psycopg2 here too (safe + consistent), and point to notification-db
       DATABASE_URL: postgresql+psycopg2://app:app@notification-db:5432/appdb
       # point to the login service by its compose service name
+    depends_on:
+      notification-db:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - labnet
+
+  notification-worker:
+    image: ghcr.io/tremainm/ci-cd_y4-bankingapp_notification/notification_service:latest
+    environment:
+      APP_ENV: docker
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: appdb
+      DATABASE_URL: postgresql+psycopg2://app:app@notification-db:5432/appdb
+      RABBIT_URL: amqps://czithupx:V7RN0YPnBW0lH-ezEGVkFKaoMne94wD9@stingray.rmq.cloudamqp.com/czithupx
+    command: ["python", "-u", "-m", "app.worker"]
     depends_on:
       notification-db:
         condition: service_healthy
