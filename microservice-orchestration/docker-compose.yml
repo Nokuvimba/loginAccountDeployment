@@ -1,52 +1,58 @@
 services:
   login-db:
     image: postgres:17-alpine
-    env_file: ./login-microservice/.env.docker
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: logindb
     volumes:
-      - login-postgres-data:/var/lib/postgresql/data
+      - login-data:/var/lib/postgresql/data
+    ports:
+      - "5434:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER:-app}\" -d \"$${POSTGRES_DB:-appdb}\""]
+      test: ["CMD-SHELL", "pg_isready -U app -d logindb"]
       interval: 5s
       retries: 10
-    restart: unless-stopped
+
+  account-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: accountdb
+    volumes:
+      - account-data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d accountdb"]
+      interval: 5s
+      retries: 10
 
   login:
-    build: ./login-microservice
-    env_file: ./login-microservice/.env.docker
+    build: ./CI-CD_Y4-BankingApp_Login
     environment:
       - APP_ENV=docker
+      - DATABASE_URL=postgresql+psycopg2://app:app@login-db:5432/logindb
       - ACCOUNT_BASE_URL=http://account:8000
     depends_on:
       login-db:
         condition: service_healthy
     ports:
       - "8001:8000"
-    restart: unless-stopped
-
-  account-db:
-    image: postgres:17-alpine
-    env_file: ./account-microservice/.env.docker
-    volumes:
-      - account-postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER:-app}\" -d \"$${POSTGRES_DB:-appdb}\""]
-      interval: 5s
-      retries: 10
-    restart: unless-stopped
 
   account:
-    build: ./account-microservice
-    env_file: ./account-microservice/.env.docker
+    build: ./Account-Microservice
     environment:
       - APP_ENV=docker
+      - DATABASE_URL=postgresql+psycopg://app:app@account-db:5432/accountdb
       - LOGIN_BASE_URL=http://login:8000
     depends_on:
       account-db:
         condition: service_healthy
     ports:
       - "8002:8000"
-    restart: unless-stopped
 
 volumes:
-  login-postgres-data: {}
-  account-postgres-data: {}
+  login-data:
+  account-data:
